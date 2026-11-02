@@ -460,6 +460,292 @@
     return out;
   };
 
+  /* ================= ALAT GAMBAR: ubah ukuran, tanda air, kolase ================= */
+  const pickFmt = (name, pick) => (pick && pick !== 'auto' ? pick : ext(name) === 'png' ? 'png' : ext(name) === 'webp' ? 'webp' : 'jpg');
+
+  E.imgresize = async (files, o, prog) => {
+    const out = [], W = Math.round(+o.width || 0), H = Math.round(+o.height || 0), pct = +o.percent || 100;
+    for (let i = 0; i < files.length; i++) {
+      prog(i / files.length, files[i].name);
+      const src = await decodeImage(files[i]), { w, h } = dimsOf(src);
+      let tw, th, sx = 0, sy = 0, sw = w, sh = h;
+      if (o.mode === 'width') { if (!W) throw new Error('Isi lebar (px) yang diinginkan.'); tw = W; th = Math.round(h * W / w); }
+      else if (o.mode === 'height') { if (!H) throw new Error('Isi tinggi (px) yang diinginkan.'); th = H; tw = Math.round(w * H / h); }
+      else if (o.mode === 'fit') { if (!W || !H) throw new Error('Isi lebar dan tinggi maksimal (px).'); const k = Math.min(W / w, H / h); tw = Math.round(w * k); th = Math.round(h * k); }
+      else if (o.mode === 'exact') { if (!W || !H) throw new Error('Isi lebar dan tinggi (px).'); tw = W; th = H; const k = Math.max(W / w, H / h); sw = W / k; sh = H / k; sx = (w - sw) / 2; sy = (h - sh) / 2; }
+      else { tw = Math.round(w * pct / 100); th = Math.round(h * pct / 100); }
+      tw = Math.max(1, tw); th = Math.max(1, th);
+      if (tw * th > 80e6) throw new Error('Ukuran hasil terlalu besar (' + tw + ' × ' + th + ' px). Kecilkan ukuran target.');
+      const fmt = pickFmt(files[i].name, o.to), mime = MIME[fmt], c = newCanvas(tw, th), ctx = c.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
+      if (mime === 'image/jpeg') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, tw, th); }
+      ctx.drawImage(src, sx, sy, sw, sh, 0, 0, tw, th);
+      out.push({ name: baseName(files[i].name) + '-' + tw + 'x' + th + '.' + fmt, blob: await toBlob(c, mime, (+o.quality || 90) / 100), note: w + ' × ' + h + ' → ' + tw + ' × ' + th + ' px' });
+      await tick();
+    }
+    return out;
+  };
+
+  E.watermark = async (files, o, prog) => {
+    const text = String(o.text || '').trim();
+    if (!text) throw new Error('Isi teks tanda air terlebih dahulu.');
+    const out = [];
+    for (let i = 0; i < files.length; i++) {
+      prog(i / files.length, files[i].name);
+      const src = await decodeImage(files[i]), fmt = pickFmt(files[i].name, o.to), mime = MIME[fmt];
+      const c = drawScaled(src, 1, mime === 'image/jpeg'), ctx = c.getContext('2d'), W = c.width, H = c.height;
+      const fs = Math.max(12, Math.round(W * (+o.size || 5) / 100));
+      const dark = o.color === 'black';
+      ctx.font = '700 ' + fs + 'px "Plus Jakarta Sans", Inter, Arial, sans-serif';
+      ctx.globalAlpha = Math.min(1, Math.max(0.05, (+o.opacity || 50) / 100));
+      ctx.fillStyle = dark ? '#000' : '#fff'; ctx.strokeStyle = dark ? '#fff' : '#000'; ctx.lineWidth = Math.max(1, fs / 14); ctx.lineJoin = 'round';
+      if (o.pos === 'tile') {
+        ctx.save(); ctx.translate(W / 2, H / 2); ctx.rotate(-Math.PI / 6); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const stepX = ctx.measureText(text).width + fs * 2, stepY = fs * 3, diag = Math.hypot(W, H);
+        for (let y = -diag / 2, r = 0; y < diag / 2; y += stepY, r++) for (let x = -diag / 2 + (r % 2 ? stepX / 2 : 0); x < diag / 2; x += stepX) { ctx.strokeText(text, x, y); ctx.fillText(text, x, y); }
+        ctx.restore();
+      } else {
+        const m = fs * 0.6, p = o.pos || 'br';
+        ctx.textAlign = p.endsWith('l') ? 'left' : p.endsWith('r') ? 'right' : 'center';
+        ctx.textBaseline = p.startsWith('t') ? 'top' : p.startsWith('b') ? 'bottom' : 'middle';
+        const x = p.endsWith('l') ? m : p.endsWith('r') ? W - m : W / 2, y = p.startsWith('t') ? m : p.startsWith('b') ? H - m : H / 2;
+        ctx.strokeText(text, x, y); ctx.fillText(text, x, y);
+      }
+      out.push({ name: baseName(files[i].name) + '-tandaair.' + fmt, blob: await toBlob(c, mime, 0.92) });
+      await tick();
+    }
+    return out;
+  };
+
+  E.collage = async (files, o, prog) => {
+    const n = files.length;
+    if (n < 2) throw new Error('Pilih minimal 2 foto untuk dibuat kolase.');
+    if (n > 12) throw new Error('Maksimal 12 foto per kolase.');
+    const W = +o.width || 1500, gap = Math.round(W * (o.gap === undefined || o.gap === '' || isNaN(+o.gap) ? 2 : +o.gap) / 100), ratio = +o.ratio || 1;
+    const cols = o.layout === 'row' ? n : o.layout === 'col' ? 1 : o.layout === 'c2' ? Math.min(2, n) : o.layout === 'c3' ? Math.min(3, n) : Math.ceil(Math.sqrt(n));
+    const rows = Math.ceil(n / cols), cw = Math.floor((W - gap * (cols + 1)) / cols), ch = Math.round(cw / ratio), H = rows * ch + gap * (rows + 1);
+    if (cw < 20) throw new Error('Terlalu banyak foto dalam satu baris untuk lebar ini. Pilih tata letak lain.');
+    if (W * H > 60e6) throw new Error('Kolase terlalu besar. Kecilkan lebar atau pilih tata letak lain.');
+    const BG = { white: '#ffffff', black: '#111111', gray: '#e2e8f0', indigo: '#4F46E5', amber: '#F59E0B' };
+    const c = newCanvas(W, H), ctx = c.getContext('2d'); ctx.fillStyle = BG[o.bg] || '#fff'; ctx.fillRect(0, 0, W, H); ctx.imageSmoothingQuality = 'high';
+    for (let i = 0; i < n; i++) {
+      prog(i / n, files[i].name);
+      const src = await decodeImage(files[i]), { w, h } = dimsOf(src), k = Math.max(cw / w, ch / h), sw = cw / k, sh = ch / k;
+      const r = Math.floor(i / cols), inRow = r === rows - 1 ? n - cols * (rows - 1) : cols, shift = (cols - inRow) * (cw + gap) / 2;
+      ctx.drawImage(src, (w - sw) / 2, (h - sh) / 2, sw, sh, Math.round(gap + (i % cols) * (cw + gap) + shift), gap + r * (ch + gap), cw, ch);
+      await tick();
+    }
+    const fmt = o.to === 'png' ? 'png' : 'jpg';
+    return [{ name: 'kolase-ubahin.' + fmt, blob: await toBlob(c, MIME[fmt], 0.92), note: W + ' × ' + H + ' px' }];
+  };
+
+  /* ================= ALAT VIDEO ================= */
+  const NOVID = 'Browser tidak bisa membaca video ini. Coba video MP4 (H.264) atau WEBM, dan gunakan Chrome atau Edge versi terbaru.';
+  function parseTime(v, dflt) {
+    if (v === undefined || v === null || String(v).trim() === '') return dflt;
+    const s = String(v).trim().replace(',', '.');
+    const val = s.includes(':') ? s.split(':').map(Number).reduce((a, x) => a * 60 + x, 0) : Number(s);
+    if (isNaN(val) || val < 0) throw new Error('Format waktu tidak valid: "' + v + '". Contoh: 90 (detik) atau 1:30');
+    return val;
+  }
+  function closeVideo(v) { try { v.pause(); } catch (e) { /* abaikan */ } v.removeAttribute('src'); try { v.load(); } catch (e) { /* abaikan */ } v.remove(); URL.revokeObjectURL(v._url); }
+  function openVideo(file) {
+    return new Promise((res, rej) => {
+      const v = document.createElement('video'), url = URL.createObjectURL(file);
+      v.muted = true; v.playsInline = true; v.preload = 'auto'; v.setAttribute('playsinline', ''); v._url = url;
+      v.style.cssText = 'position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
+      let t;
+      const fail = () => { clearTimeout(t); closeVideo(v); rej(new Error(NOVID)); };
+      t = setTimeout(fail, 25000);
+      v.onerror = fail;
+      v.onloadedmetadata = async () => {
+        if (!v.videoWidth) return fail();
+        if (!isFinite(v.duration)) { // WEBM tanpa durasi
+          await new Promise((r) => { v.ontimeupdate = () => { v.ontimeupdate = null; r(); }; v.currentTime = 1e101; setTimeout(r, 3000); });
+          v.currentTime = 0;
+        }
+        if (!isFinite(v.duration) || v.duration <= 0) return fail();
+        clearTimeout(t); res(v);
+      };
+      v.src = url; document.body.appendChild(v);
+    });
+  }
+  function seekTo(v, t) {
+    return new Promise((res) => {
+      if (Math.abs(v.currentTime - t) < 0.001 && v.readyState >= 2) return res();
+      const done = () => { v.removeEventListener('seeked', done); clearTimeout(to); res(); };
+      const to = setTimeout(done, 5000);
+      v.addEventListener('seeked', done); v.currentTime = t;
+    });
+  }
+
+  /* --- encoder GIF (palet global median-cut + LZW) --- */
+  function buildPalette(hist) {
+    const cols = []; for (let i = 0; i < 32768; i++) if (hist[i]) cols.push(i);
+    const sum = (a) => a.reduce((s, c) => s + hist[c], 0);
+    const boxes = [{ cols, n: sum(cols) }];
+    while (boxes.length < 256) {
+      let bi = -1, best = 0; boxes.forEach((b, i) => { if (b.cols.length > 1 && b.n > best) { best = b.n; bi = i; } });
+      if (bi < 0) break;
+      const b = boxes[bi], mn = [31, 31, 31], mx = [0, 0, 0];
+      for (const c of b.cols) { const r = [(c >> 10) & 31, (c >> 5) & 31, c & 31]; for (let k = 0; k < 3; k++) { if (r[k] < mn[k]) mn[k] = r[k]; if (r[k] > mx[k]) mx[k] = r[k]; } }
+      const ch = [0, 1, 2].sort((a, c) => (mx[c] - mn[c]) - (mx[a] - mn[a]))[0], sh = [10, 5, 0][ch];
+      b.cols.sort((a, c) => ((a >> sh) & 31) - ((c >> sh) & 31));
+      let acc = 0, cut = 0; for (; cut < b.cols.length - 1; cut++) { acc += hist[b.cols[cut]]; if (acc >= b.n / 2) break; }
+      const a1 = b.cols.slice(0, cut + 1), a2 = b.cols.slice(cut + 1);
+      boxes.splice(bi, 1, { cols: a1, n: sum(a1) }, { cols: a2, n: sum(a2) });
+    }
+    const pal = new Uint8Array(768);
+    boxes.forEach((b, i) => {
+      let r = 0, g = 0, bl = 0, n = 0; for (const c of b.cols) { const w = hist[c]; r += ((c >> 10) & 31) * w; g += ((c >> 5) & 31) * w; bl += (c & 31) * w; n += w; }
+      const f = (v) => { const x = Math.round(v / n); return (x << 3) | (x >> 2); };
+      pal[i * 3] = f(r); pal[i * 3 + 1] = f(g); pal[i * 3 + 2] = f(bl);
+    });
+    return pal;
+  }
+  function lzwGif(idx, minCode) { // mengikuti pola omggif
+    const clear = 1 << minCode, eoi = clear + 1, out = new Uint8Array(Math.ceil(idx.length * 1.6) + 1024);
+    let p = 0, next = eoi + 1, size = minCode + 1, cur = 0, shift = 0, table = new Int16Array(4096 * 256);
+    const emit = (code) => { cur |= code << shift; shift += size; while (shift >= 8) { out[p++] = cur & 255; cur >>= 8; shift -= 8; } };
+    emit(clear);
+    let ib = idx[0];
+    for (let i = 1; i < idx.length; i++) {
+      const k = idx[i], key = (ib << 8) | k, c = table[key];
+      if (c === 0) {
+        emit(ib);
+        if (next === 4096) { emit(clear); next = eoi + 1; size = minCode + 1; table.fill(0); }
+        else { if (next >= (1 << size)) size++; table[key] = next++; }
+        ib = k;
+      } else ib = c;
+    }
+    emit(ib); emit(eoi); if (shift > 0) out[p++] = cur & 255;
+    return out.subarray(0, p);
+  }
+  function gifBlob(frames, w, h, pal, delayCs) {
+    const parts = [], u16 = (n) => [n & 255, (n >> 8) & 255];
+    parts.push(new Uint8Array([71, 73, 70, 56, 57, 97, ...u16(w), ...u16(h), 0xf7, 0, 0]), pal);
+    parts.push(new Uint8Array([0x21, 0xff, 0x0b, 78, 69, 84, 83, 67, 65, 80, 69, 50, 46, 48, 3, 1, 0, 0, 0]));
+    for (const f of frames) {
+      parts.push(new Uint8Array([0x21, 0xf9, 4, 0x04, ...u16(delayCs), 0, 0, 0x2c, 0, 0, 0, 0, ...u16(w), ...u16(h), 0, 8]));
+      const data = lzwGif(f, 8);
+      for (let o = 0; o < data.length; o += 255) { const n = Math.min(255, data.length - o), blk = new Uint8Array(n + 1); blk[0] = n; blk.set(data.subarray(o, o + n), 1); parts.push(blk); }
+      parts.push(new Uint8Array([0]));
+    }
+    parts.push(new Uint8Array([0x3b]));
+    return new Blob(parts, { type: 'image/gif' });
+  }
+
+  E.video2gif = async (files, o, prog) => {
+    const out = [];
+    for (let f = 0; f < files.length; f++) {
+      const v = await openVideo(files[f]);
+      try {
+        const dur = v.duration, start = parseTime(o.start, 0);
+        if (start >= dur) throw new Error('Waktu mulai (' + start + ' dtk) melebihi durasi video (' + dur.toFixed(1) + ' dtk).');
+        const len = Math.min(Math.max(parseTime(o.duration, 5), 0.5), 20, dur - start), fps = +o.fps || 10;
+        const width = Math.min(+o.width || 480, v.videoWidth), height = Math.max(1, Math.round(v.videoHeight * width / v.videoWidth)), n = Math.max(1, Math.floor(len * fps));
+        if (n * width * height > 150e6) throw new Error('GIF terlalu besar. Kecilkan lebar, durasi, atau frame per detik.');
+        const c = newCanvas(width, height), ctx = c.getContext('2d', { willReadFrequently: true }), raw = [], hist = new Uint32Array(32768);
+        for (let i = 0; i < n; i++) {
+          prog((f + (i / n) * 0.6) / files.length, files[f].name + ' — mengambil frame ' + (i + 1) + '/' + n);
+          await seekTo(v, Math.min(start + i / fps, dur - 0.05));
+          ctx.drawImage(v, 0, 0, width, height);
+          const d = ctx.getImageData(0, 0, width, height).data; raw.push(d);
+          if (i % 2 === 0) for (let q = 0; q < d.length; q += 16) hist[((d[q] >> 3) << 10) | ((d[q + 1] >> 3) << 5) | (d[q + 2] >> 3)]++;
+        }
+        prog((f + 0.65) / files.length, 'Membuat palet warna…'); await tick();
+        const pal = buildPalette(hist), lut = new Int16Array(32768).fill(-1);
+        const near = (key) => {
+          const r = ((key >> 10) & 31) << 3 | 4, g = ((key >> 5) & 31) << 3 | 4, b = (key & 31) << 3 | 4; let best = 0, bd = 1e9;
+          for (let i = 0; i < 256; i++) { const dr = pal[i * 3] - r, dg = pal[i * 3 + 1] - g, db = pal[i * 3 + 2] - b, d = dr * dr + dg * dg + db * db; if (d < bd) { bd = d; best = i; } }
+          return best;
+        };
+        const frames = [];
+        for (let i = 0; i < n; i++) {
+          const d = raw[i], idx = new Uint8Array(width * height);
+          for (let p = 0, q = 0; p < idx.length; p++, q += 4) { const key = ((d[q] >> 3) << 10) | ((d[q + 1] >> 3) << 5) | (d[q + 2] >> 3); let v2 = lut[key]; if (v2 < 0) v2 = lut[key] = near(key); idx[p] = v2; }
+          frames.push(idx); raw[i] = null;
+          if (i % 5 === 0) { prog((f + 0.7 + 0.3 * (i / n)) / files.length, 'Menyusun GIF…'); await tick(); }
+        }
+        const blob = gifBlob(frames, width, height, pal, Math.round(100 / fps));
+        out.push({ name: baseName(files[f].name) + '.gif', blob, note: width + ' × ' + height + ' px, ' + n + ' frame, ' + (n / fps).toFixed(1) + ' dtk' });
+      } finally { closeVideo(v); }
+    }
+    return out;
+  };
+
+  /* --- rekam ulang video (pangkas & kompres) — berjalan seiring durasi video --- */
+  const REC_TYPES = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+  async function recordClip(file, o, prog) {
+    if (!window.MediaRecorder) throw new Error('Browser ini belum mendukung perekaman video. Gunakan Chrome, Edge, atau Safari terbaru.');
+    const mime = REC_TYPES.find((t) => MediaRecorder.isTypeSupported(t));
+    if (!mime) throw new Error('Browser ini tidak mendukung format keluaran video.');
+    const v = await openVideo(file); let ac = null, stream = null, rec = null;
+    try {
+      const dur = v.duration, start = parseTime(o.start, 0), end = Math.min(parseTime(o.end, dur), dur);
+      if (start >= dur) throw new Error('Waktu mulai (' + start + ' dtk) melebihi durasi video (' + dur.toFixed(1) + ' dtk).');
+      if (end - start < 0.3) throw new Error('Rentang waktu terlalu pendek. Pastikan "Selesai" lebih besar dari "Mulai".');
+      const k = o.maxH && v.videoHeight > +o.maxH ? +o.maxH / v.videoHeight : 1;
+      const w = Math.max(2, Math.round(v.videoWidth * k / 2) * 2), h = Math.max(2, Math.round(v.videoHeight * k / 2) * 2);
+      const c = newCanvas(w, h), ctx = c.getContext('2d', { alpha: false }), fps = Math.min(+o.fps || 30, 30);
+      stream = c.captureStream(fps);
+      let mutedFallback = false;
+      if (!o.mute) {
+        try {
+          const AC = window.AudioContext || window.webkitAudioContext; ac = new AC();
+          const srcNode = ac.createMediaElementSource(v), dest = ac.createMediaStreamDestination(); srcNode.connect(dest);
+          v.muted = false; v.volume = 1; stream.addTrack(dest.stream.getAudioTracks()[0]); await ac.resume();
+        } catch (e) { mutedFallback = true; }
+      }
+      const bps = o.vbps || Math.min(10e6, Math.max(6e5, (file.size * 8 / dur) * 1.2));
+      rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: Math.round(bps), audioBitsPerSecond: o.abps || 128000 });
+      const chunks = []; rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      const stopped = new Promise((r) => { rec.onstop = r; });
+      await seekTo(v, start);
+      ctx.drawImage(v, 0, 0, w, h);
+      let stop = false;
+      const draw = () => { if (stop) return; ctx.drawImage(v, 0, 0, w, h); v.requestVideoFrameCallback ? v.requestVideoFrameCallback(draw) : requestAnimationFrame(draw); };
+      rec.start(500); draw();
+      try { await v.play(); } catch (e) { v.muted = true; mutedFallback = true; await v.play(); }
+      await new Promise((resolve) => {
+        const hard = setTimeout(resolve, ((end - start) * 2 + 60) * 1000);
+        const iv = setInterval(() => {
+          const cur = v.currentTime;
+          prog(Math.min(0.99, (cur - start) / (end - start)), 'Memproses ' + Math.round(Math.min(1, (cur - start) / (end - start)) * 100) + '% — biarkan tab ini tetap terbuka');
+          if (cur >= end - 0.05 || v.ended || (v.paused && cur > start)) { clearInterval(iv); clearTimeout(hard); resolve(); }
+        }, 150);
+      });
+      stop = true; v.pause(); await tick();
+      if (rec.state !== 'inactive') rec.stop();
+      await stopped;
+      const blob = new Blob(chunks, { type: mime.split(';')[0] });
+      if (!blob.size) throw new Error('Perekaman gagal menghasilkan video. Coba lagi dengan video yang lebih pendek.');
+      return { blob, ext: (rec.mimeType || mime).startsWith('video/mp4') ? 'mp4' : 'webm', mutedFallback, w, h };
+    } finally {
+      try { stream && stream.getTracks().forEach((t) => t.stop()); } catch (e) { /* abaikan */ }
+      try { ac && ac.close(); } catch (e) { /* abaikan */ }
+      closeVideo(v);
+    }
+  }
+  E.videotrim = async (files, o, prog) => {
+    const out = [];
+    for (let i = 0; i < files.length; i++) {
+      const r = await recordClip(files[i], { start: o.start, end: o.end }, (x, m) => prog((i + x) / files.length, files[i].name + ' — ' + m));
+      out.push({ name: baseName(files[i].name) + '-pangkas.' + r.ext, blob: r.blob, before: files[i].size, note: r.mutedFallback ? 'Suara tidak ikut terekam di browser ini.' : '' });
+    }
+    return out;
+  };
+  const VPRESET = { 720: [720, 2.5e6, 96000], 480: [480, 1.1e6, 80000], 360: [360, 6e5, 64000], 240: [240, 3e5, 48000] };
+  E.videocompress = async (files, o, prog) => {
+    const [maxH, vbps, abps] = VPRESET[o.preset] || VPRESET[480], out = [];
+    for (let i = 0; i < files.length; i++) {
+      const r = await recordClip(files[i], { maxH, vbps, abps, mute: o.mute === 'yes', fps: 30 }, (x, m) => prog((i + x) / files.length, files[i].name + ' — ' + m));
+      const small = r.blob.size < files[i].size;
+      out.push({ name: baseName(files[i].name) + '-kecil.' + r.ext, blob: small ? r.blob : files[i], before: files[i].size, note: small ? (r.mutedFallback ? 'Suara tidak ikut terekam di browser ini.' : '') : 'Video sudah sangat efisien; ukuran asli dipertahankan.' });
+    }
+    return out;
+  };
+
   async function zip(results) {
     const Z = await JSZipLib(), z = new Z(), seen = {};
     results.forEach((r) => {
@@ -469,5 +755,5 @@
     return z.generateAsync({ type: 'blob' });
   }
 
-  window.UbahinEngines = { run: (kind, files, opts, prog) => { if (!E[kind]) throw new Error('Mesin tidak dikenal: ' + kind); return E[kind](files, opts || {}, prog || (() => {})); }, zip, ext, baseName, parsePages };
+  window.UbahinEngines = { run: (kind, files, opts, prog) => { if (!E[kind]) throw new Error('Mesin tidak dikenal: ' + kind); return E[kind](files, opts || {}, prog || (() => {})); }, zip, ext, baseName, parsePages, util: { decodeImage, toBlob, drawScaled, dimsOf, MIME, newCanvas } };
 })();
