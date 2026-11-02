@@ -4,14 +4,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import crypto from 'node:crypto';
 
 const ROOT = path.dirname(new URL(import.meta.url).pathname);
 const DIST = path.resolve(ROOT, process.env.OUT_DIR || 'dist');
 const HTML_LINKS = process.argv.includes('--html');
-const SITE = (process.env.SITE_URL || 'https://ubahin.com').replace(/\/$/, '');
-const CONTACT = process.env.CONTACT_EMAIL || 'halo@ubahin.com';
+const SITE = (process.env.SITE_URL || 'https://ubahin.example').replace(/\/$/, '');
+const CONTACT = process.env.CONTACT_EMAIL || 'halo@ubahin.example';
 const DONATE = process.env.DONATE_URL || '';
 const YEAR = new Date().getFullYear();
+// Versi aset: berubah otomatis saat CSS/JS berubah, supaya browser tidak memakai salinan lama dari cache
+const VER = (() => { const h = crypto.createHash('sha1'); for (const f of ['css/style.css', 'js/engines.js', 'js/app.js', 'js/unit.js']) h.update(fs.readFileSync(path.join(ROOT, 'public/assets', f))); return h.digest('hex').slice(0, 8); })();
 
 fs.rmSync(DIST, { recursive: true, force: true });
 fs.mkdirSync(DIST, { recursive: true });
@@ -100,11 +103,11 @@ const tools = [
 
   // ---- media
   { slug: 'video-ke-mp3', cat: 'media', ico: 'MP3', name: 'Video ke MP3', h1: 'Ubah Video ke MP3 Online', desc: 'Ambil suara dari video (MP4, MOV, WEBM) dan simpan sebagai MP3 atau WAV. Gratis dan privat.', short: 'Ambil suara dari video jadi MP3',
-    accept: ['mp4', 'm4v', 'mov', 'webm', '3gp', 'mp3', 'wav', 'm4a', 'ogg', 'aac', 'flac'], multiple: true, maxMB: 200, targets: [{ id: 'x', kind: 'media2audio', opts: [{ id: 'to', label: 'Format', type: 'select', value: 'mp3', options: [['mp3', 'MP3'], ['wav', 'WAV (tanpa kompresi, file besar)']] }, { id: 'bitrate', label: 'Kualitas MP3', type: 'select', value: 128, options: [[96, '96 kbps (hemat)'], [128, '128 kbps (standar)'], [192, '192 kbps (bagus)'], [256, '256 kbps (tinggi)']] }], button: 'Ubah ke audio' }],
+    accept: ['mp4', 'm4v', 'mov', 'webm', '3gp', 'mp3', 'wav', 'm4a', 'ogg', 'aac', 'flac'], multiple: true, maxMB: 200, targets: [{ id: 'x', kind: 'media2audio', opts: [{ id: 'to', label: 'Format', type: 'select', value: 'mp3', options: [['mp3', 'MP3'], ['aac', 'AAC (tercepat, suara asli; hanya dari MP4/MOV/M4A)'], ['wav', 'WAV (tanpa kompresi, file besar)']] }, { id: 'bitrate', label: 'Kualitas MP3', type: 'select', value: 128, options: [[96, '96 kbps (hemat)'], [128, '128 kbps (standar)'], [192, '192 kbps (bagus)'], [256, '256 kbps (tinggi)']] }], button: 'Ubah ke audio' }],
     intro: 'Ekstrak suara dari video lalu simpan sebagai MP3. Prosesnya memakai kemampuan browser Anda untuk membaca suara, sehingga format yang umum seperti MP4, MOV, dan WEBM paling aman. Video yang sangat panjang butuh memori besar; gunakan Chrome atau Edge di komputer untuk file besar.',
     faq: [['Format video apa yang didukung?', 'Yang bisa dibaca browser Anda: umumnya MP4, MOV, WEBM, M4A, MP3, WAV, OGG. Format seperti MKV atau AVI sering tidak didukung.'], ['Berapa lama prosesnya?', 'Tergantung durasi dan perangkat. Video 10 menit biasanya selesai dalam beberapa detik di komputer.']], rel: ['mp4-ke-mp3', 'kompres-gambar'] },
   { slug: 'mp4-ke-mp3', cat: 'media', ico: 'MP3', name: 'MP4 ke MP3', h1: 'Ubah MP4 ke MP3 Online', desc: 'Ubah MP4 ke MP3 gratis di browser. Tanpa daftar, tanpa unggah.', short: 'MP4 jadi MP3',
-    accept: ['mp4', 'm4v', 'mov'], multiple: true, maxMB: 200, targets: [{ id: 'x', kind: 'media2audio', opts: [{ id: 'to', label: 'Format', type: 'select', value: 'mp3', options: [['mp3', 'MP3'], ['wav', 'WAV']] }, { id: 'bitrate', label: 'Kualitas MP3', type: 'select', value: 128, options: [[96, '96 kbps'], [128, '128 kbps'], [192, '192 kbps'], [256, '256 kbps']] }], button: 'Ubah ke MP3' }],
+    accept: ['mp4', 'm4v', 'mov'], multiple: true, maxMB: 200, targets: [{ id: 'x', kind: 'media2audio', opts: [{ id: 'to', label: 'Format', type: 'select', value: 'mp3', options: [['mp3', 'MP3'], ['aac', 'AAC (tercepat, suara asli)'], ['wav', 'WAV']] }, { id: 'bitrate', label: 'Kualitas MP3', type: 'select', value: 128, options: [[96, '96 kbps'], [128, '128 kbps'], [192, '192 kbps'], [256, '256 kbps']] }], button: 'Ubah ke MP3' }],
     intro: 'Simpan musik, ceramah, atau rekaman rapat dari file MP4 sebagai MP3 yang ringan dan mudah diputar di mana saja.',
     faq: [['Apakah video ikut tersimpan?', 'Tidak. Hanya jalur suaranya yang diambil.']], rel: ['video-ke-mp3'] }
 ];
@@ -180,7 +183,7 @@ ${noindex ? '<meta name="robots" content="noindex">' : ''}
 <link rel="icon" href="${rel(d)}assets/img/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="${rel(d)}assets/img/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap">
-<link rel="stylesheet" href="${rel(d)}assets/css/style.css">
+<link rel="stylesheet" href="${rel(d)}assets/css/style.css?v=${VER}">
 ${head}
 </head><body>
 ${header(d)}
@@ -201,7 +204,7 @@ const steps = `<ol class="steps"><li><h3>Pilih file</h3><p>Seret file ke kotak d
 const trust = `<ul class="trust"><li>Gratis, tanpa daftar</li><li>Diproses di perangkat Anda</li><li>Tanpa watermark</li></ul>`;
 const faqHtml = (items) => items.map(([q, a]) => `<details><summary>${esc(q)}</summary><div>${esc(a)}</div></details>`).join('');
 const cardsHtml = (list, d) => list.map((t) => `<a class="card" href="${link(d, t.slug)}"><div class="ico ${cardClass(t)}">${esc(t.ico)}</div><h3>${esc(t.name)}</h3><p>${esc(t.short)}</p></a>`).join('');
-const toolScripts = (cfg, d, extra = '') => `<script>window.UBAHIN=${JSON.stringify(cfg)};</script><script src="${rel(d)}assets/js/engines.js"></script><script src="${rel(d)}assets/js/app.js"></script>${extra}`;
+const toolScripts = (cfg, d, extra = '') => `<script>window.UBAHIN=${JSON.stringify(cfg)};</script><script src="${rel(d)}assets/js/engines.js?v=${VER}"></script><script src="${rel(d)}assets/js/app.js?v=${VER}"></script>${extra}`;
 
 /* ---------------- tulis berkas ---------------- */
 const written = [];
@@ -258,7 +261,7 @@ for (const t of tools) {
   const d = 1;
   const body = `<div class="wrap"><nav class="crumbs" aria-label="Breadcrumb"><a href="${link(d)}">Beranda</a> › Konverter satuan</nav><section class="hero" style="padding-top:20px"><h1>Konverter Satuan Online</h1><p class="lead">Ubah panjang, berat, volume, dan suhu dengan cepat.</p><div class="tool" id="unit-tool"></div></section>
 <section class="block prose"><h2>Tentang konverter satuan</h2><p>Pilih jenis satuan, isi nilai, dan hasil muncul seketika. Cocok untuk mengubah kilogram ke pon, kaki ke meter, atau Celsius ke Fahrenheit. Seluruh perhitungan dilakukan di browser.</p></section></div>`;
-  write('konverter-satuan', page({ slug: 'konverter-satuan', depth: d, title: 'Konverter Satuan Online — Panjang, Berat, Suhu | Ubahin', desc: 'Konverter satuan gratis: kg ke lbs, feet ke meter, Celsius ke Fahrenheit, liter ke galon, dan lainnya.', body, scripts: `<script src="${rel(d)}assets/js/unit.js"></script>` }));
+  write('konverter-satuan', page({ slug: 'konverter-satuan', depth: d, title: 'Konverter Satuan Online — Panjang, Berat, Suhu | Ubahin', desc: 'Konverter satuan gratis: kg ke lbs, feet ke meter, Celsius ke Fahrenheit, liter ke galon, dan lainnya.', body, scripts: `<script src="${rel(d)}assets/js/unit.js?v=${VER}"></script>` }));
 }
 
 // Semua alat
@@ -323,8 +326,14 @@ fs.writeFileSync(path.join(DIST, '_headers'), `/*
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY
   Permissions-Policy: camera=(), microphone=(), geolocation=()
-/assets/*
+/assets/vendor/*
   Cache-Control: public, max-age=31536000, immutable
+/assets/css/*
+  Cache-Control: public, max-age=3600
+/assets/js/*
+  Cache-Control: public, max-age=3600
+/assets/img/*
+  Cache-Control: public, max-age=86400
 `);
 
 // ikon & gambar OG

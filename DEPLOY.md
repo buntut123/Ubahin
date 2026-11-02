@@ -13,7 +13,7 @@ Biaya minimal: hanya domain (± Rp 150–300 ribu/tahun). Hosting Cloudflare Pag
 1. Buat akun github.com, buat repositori baru, upload seluruh isi proyek ini.
 2. Cloudflare → Workers & Pages → Create → Pages → **Connect to Git** → pilih repositori.
 3. Pengaturan build: **Build command** `node build.mjs`, **Build output directory** `dist`.
-4. Tambah **Environment variables**: `SITE_URL` (mis. `https://ubahin.id`), `CONTACT_EMAIL`, `DONATE_URL`.
+4. Tambah **Environment variables**: `SITE_URL` (mis. `https://ubahin.com`), `CONTACT_EMAIL`, `DONATE_URL`.
 5. Deploy. Setiap `git push` akan membangun dan memublikasikan ulang.
 
 ## Domain
