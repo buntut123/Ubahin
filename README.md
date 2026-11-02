@@ -10,7 +10,7 @@ Konverter file online berbahasa Indonesia. Situs statis; semua konversi berjalan
 ## Perintah
 ```
 node build.mjs                      # build ke dist/
-SITE_URL=https://ubahin.com CONTACT_EMAIL=halo@ubahin.com DONATE_URL=https://trakteer.id/xxx node build.mjs
+SITE_URL=https://ubahin.com CONTACT_EMAIL=riyankeyen1@ugmail.com DONATE_URL=https://trakteer.id/xxx node build.mjs
 python3 -m http.server 8080 --directory dist   # coba di http://localhost:8080
 ```
 Variabel build: `SITE_URL` (domain final, untuk canonical/sitemap), `CONTACT_EMAIL`, `DONATE_URL`.
