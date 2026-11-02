@@ -1,3 +1,0 @@
-User-agent: *
-Allow: /
-Sitemap: https://ubahin.example/sitemap.xml
