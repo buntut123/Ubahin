@@ -1,0 +1,13 @@
+{
+  "name": "ubahin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ubahin — konverter file online berbahasa Indonesia (situs statis, konversi di browser)",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:html-links": "node build.mjs --html",
+    "serve": "python3 -m http.server 8080 --directory dist"
+  },
+  "engines": { "node": ">=18" }
+}
