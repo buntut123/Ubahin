@@ -56,9 +56,11 @@
       if (o.type === 'select') inp = `<select id="o_${o.id}" data-o="${o.id}">${o.options.map(([val, lab]) => `<option value="${val}" ${String(val) === String(v) ? 'selected' : ''}>${esc(lab)}</option>`).join('')}</select>`;
       else if (o.type === 'range') inp = `<input type="range" id="o_${o.id}" data-o="${o.id}" min="${o.min}" max="${o.max}" step="${o.step || 1}" value="${v}"><div class="hint"><span id="rv_${o.id}">${v}</span>${esc(o.unit || '')}</div>`;
       else inp = `<input type="${o.type || 'text'}" id="o_${o.id}" data-o="${o.id}" value="${esc(v ?? '')}" placeholder="${esc(o.placeholder || '')}" ${o.min !== undefined ? 'min="' + o.min + '"' : ''}>`;
-      h += `<div class="opt"><label for="o_${o.id}">${esc(o.label)}</label>${inp}${o.hint && o.type !== 'range' ? `<div class="hint">${esc(o.hint)}</div>` : ''}</div>`;
+      h += `<div class="opt" ${o.showIf ? `data-sif="${o.showIf.id}" data-sin="${o.showIf.in.join(',')}"` : ''}><label for="o_${o.id}">${esc(o.label)}</label>${inp}${o.hint && o.type !== 'range' ? `<div class="hint">${esc(o.hint)}</div>` : ''}</div>`;
     });
     optsEl.innerHTML = h;
+    const applyShow = () => optsEl.querySelectorAll('[data-sif]').forEach((d) => { const c = optsEl.querySelector('[data-o="' + d.dataset.sif + '"]'); d.style.display = c && d.dataset.sin.split(',').includes(c.value) ? '' : 'none'; });
+    optsEl.onchange = applyShow; applyShow();
     optsEl.querySelectorAll('input[type=range]').forEach((r) => r.addEventListener('input', () => { $('#rv_' + r.dataset.o).textContent = r.value; }));
     const tg = $('#tg'); if (tg) tg.addEventListener('change', () => { curTarget = cfg.targets.find((t) => t.id === tg.value); renderOpts(); });
     go.textContent = curTarget.button || cfg.button || 'Ubah sekarang';
