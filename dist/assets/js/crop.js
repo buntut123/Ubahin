@@ -2,6 +2,7 @@
 (function () {
   'use strict';
   const root = document.getElementById('crop-tool'); if (!root) return;
+  const CFG = window.UBAHIN_CROP || null;
   const Eng = window.UbahinEngines, U = Eng && Eng.util;
   if (!U) { root.innerHTML = '<div class="alert err" style="display:block">Berkas situs di perangkat Anda belum yang terbaru. Muat ulang halaman, atau hapus cache browser lalu coba lagi.</div>'; return; }
   const ACCEPT = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif', 'bmp', 'avif'];
@@ -21,6 +22,7 @@
         <option value="free">Bebas</option><option value="1">Persegi 1:1</option><option value="0.75">3:4 (pas foto 3×4)</option><option value="0.6667">2:3 (pas foto 4×6)</option>
         <option value="1.3333">4:3</option><option value="1.5">3:2</option><option value="1.7778">16:9 (lanskap)</option><option value="0.5625">9:16 (cerita/reels)</option></select></div>
       <div class="opt"><label for="cfmt">Format hasil</label><select id="cfmt"><option value="jpg">JPG</option><option value="png">PNG</option><option value="webp">WEBP</option></select></div>
+      ${CFG && CFG.sizes ? '<div class="opt"><label for="csize">Ukuran pas foto</label><select id="csize">' + CFG.sizes.map((z) => '<option value="' + z.id + '">' + z.label + '</option>').join('') + '</select></div>' : ''}
     </div>
     <div class="crop-stage" id="stage"><canvas id="cv"></canvas><div class="cbox" id="box"><i class="tl" data-h="tl"></i><i class="tr" data-h="tr"></i><i class="bl" data-h="bl"></i><i class="br" data-h="br"></i></div></div>
     <div class="crop-info" id="cinfo">Geser kotak untuk memindahkan, tarik titik di sudut untuk mengubah ukuran.</div>
@@ -33,7 +35,11 @@
   const dz = $('#cdz'), fi = $('#cfi'), al = $('#cal'), work = $('#cwork'), stage = $('#stage'), cv = $('#cv'), box = $('#box'), info = $('#cinfo'), asp = $('#casp'), fm = $('#cfmt'), st = $('#cst'), rs = $('#crs'), rl = $('#crl');
   let img = null, name = 'gambar', dW = 0, dH = 0, nat = { w: 0, h: 0 }, R = { x: 0, y: 0, w: 0, h: 0 }, drag = null, url = null;
   const showErr = (m) => { al.className = 'alert err'; al.textContent = m; }; const clr = () => { al.className = 'alert'; al.textContent = ''; };
-  const ratio = () => (asp.value === 'free' ? null : parseFloat(asp.value));
+  const sizeSel = $('#csize'), sizeOf = () => (sizeSel && CFG ? CFG.sizes.find((z) => z.id === sizeSel.value) : null);
+  const ratio = () => { const z = sizeOf(); if (z) return z.w / z.h; return asp.value === 'free' ? null : parseFloat(asp.value); };
+  if (CFG && CFG.sizes) { sizeSel.value = CFG.size || CFG.sizes[0].id; asp.disabled = true; asp.parentElement.hidden = true; }
+  if (CFG && CFG.fmt) fm.value = CFG.fmt;
+  if (sizeSel) sizeSel.addEventListener('change', () => { if (img) { fitRatio(R.x + R.w / 2, R.y + R.h / 2, R.w, R.h, ratio()); paint(); } });
 
   function layout() {
     const maxW = Math.min(stage.parentElement.clientWidth || 600, 760), maxH = Math.max(280, Math.round(window.innerHeight * 0.6));
@@ -93,13 +99,19 @@
     try {
       const k = nat.w / dW, sx = Math.max(0, Math.round(R.x * k)), sy = Math.max(0, Math.round(R.y * k));
       const sw = Math.max(1, Math.min(nat.w - sx, Math.round(R.w * k))), sh = Math.max(1, Math.min(nat.h - sy, Math.round(R.h * k)));
-      const f = fm.value, mime = U.MIME[f], c = U.newCanvas(sw, sh), ctx = c.getContext('2d');
-      if (mime === 'image/jpeg') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, sw, sh); }
-      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+      const z = sizeOf(), ow = z ? z.w : sw, oh = z ? z.h : sh;
+      const f = fm.value, mime = U.MIME[f], c = U.newCanvas(ow, oh), ctx = c.getContext('2d');
+      if (mime === 'image/jpeg') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, ow, oh); }
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      if (z && (sw > ow * 2 || sh > oh * 2)) { // turunkan bertahap agar hasil tetap tajam
+        let cur = U.newCanvas(sw, sh); cur.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+        while (cur.width > ow * 2 || cur.height > oh * 2) { const n = U.newCanvas(Math.max(ow, Math.round(cur.width / 2)), Math.max(oh, Math.round(cur.height / 2))); const nc = n.getContext('2d'); nc.imageSmoothingQuality = 'high'; nc.drawImage(cur, 0, 0, n.width, n.height); cur = n; }
+        ctx.drawImage(cur, 0, 0, cur.width, cur.height, 0, 0, ow, oh);
+      } else ctx.drawImage(img, sx, sy, sw, sh, 0, 0, ow, oh);
       const blob = await U.toBlob(c, mime, 0.92);
       if (url) URL.revokeObjectURL(url); url = URL.createObjectURL(blob);
-      const fname = name + '-potong.' + f;
-      rl.innerHTML = `<div class="res"><img class="thumb" src="${url}" alt=""><div class="meta"><div class="name">${esc(fname)}</div><div class="sub">${sw} × ${sh} px · ${fmt(blob.size)}</div></div><a class="btn btn-primary btn-sm" href="${url}" download="${esc(fname)}">Unduh</a></div>`;
+      const fname = name + (z ? '-' + z.id : '-potong') + '.' + f;
+      rl.innerHTML = `<div class="res"><img class="thumb" src="${url}" alt=""><div class="meta"><div class="name">${esc(fname)}</div><div class="sub">${ow} × ${oh} px · ${fmt(blob.size)}</div></div><a class="btn btn-primary btn-sm" href="${url}" download="${esc(fname)}">Unduh</a></div>`;
       rs.style.display = 'block'; work.hidden = true; st.textContent = '';
       rs.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch (e) { st.textContent = ''; showErr(e.message || 'Gagal memotong gambar.'); }

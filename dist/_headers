@@ -13,3 +13,5 @@
   Cache-Control: public, max-age=86400
 /sidebar/*
   Cache-Control: public, max-age=0, must-revalidate
+/layout/*
+  Cache-Control: public, max-age=0, must-revalidate
