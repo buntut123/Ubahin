@@ -1,3 +1,8 @@
+/* Font Inter dihosting sendiri (lisensi SIL OFL, lihat assets/fonts/LICENSE-Inter.txt) */
+@font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:swap;src:url(../fonts/inter-400.woff) format('woff')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:500;font-display:swap;src:url(../fonts/inter-500.woff) format('woff')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:swap;src:url(../fonts/inter-600.woff) format('woff')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:700;font-display:swap;src:url(../fonts/inter-700.woff) format('woff')}
 /* Ubahin design system — token sesuai PRD bagian 4 */
 :root{
   --primary:#4F46E5; --primary-dark:#3730A3; --primary-soft:#EEF2FF;

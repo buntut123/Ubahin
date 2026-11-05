@@ -19,7 +19,7 @@
   function calc() {
     const x = parseFloat(v.value); if (isNaN(x)) { r.value = ''; return; }
     const res = cat.value === 'suhu' ? temp(x, a.value, b.value) : x * U[cat.value][a.value][1] / U[cat.value][b.value][1];
-    r.value = Number(res.toPrecision(10)).toLocaleString('id-ID', { maximumFractionDigits: 8 });
+    r.value = Number(res.toPrecision(10)).toLocaleString(document.documentElement.lang === 'en' ? 'en-US' : 'id-ID', { maximumFractionDigits: 8 });
   }
   cat.onchange = fill; [a, b, v].forEach((e) => e.addEventListener('input', calc));
   $('u_sw').onclick = () => { const t = a.value; a.value = b.value; b.value = t; calc(); };

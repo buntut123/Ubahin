@@ -145,7 +145,7 @@
     out.forEach((r, i) => {
       const url = URL.createObjectURL(r.blob); urls.push(url);
       const isImg = /^image\//.test(r.blob.type);
-      const delta = r.before ? ` · ${fmt(r.before)} → ${fmt(r.blob.size)} (${r.blob.size < r.before ? '−' + Math.round((1 - r.blob.size / r.before) * 100) + '%' : 'tidak mengecil'})` : ' · ' + fmt(r.blob.size);
+      const delta = r.before && r.before !== r.blob.size ? ` · ${fmt(r.before)} → ${fmt(r.blob.size)} (${r.blob.size < r.before ? '−' + Math.round((1 - r.blob.size / r.before) * 100) + '%' : 'tidak mengecil'})` : ' · ' + fmt(r.blob.size);
       const d = document.createElement('div'); d.className = 'res';
       d.innerHTML = `${isImg ? `<img class="thumb" src="${url}" alt="">` : ''}<div class="meta"><div class="name">${esc(r.name)}</div><div class="sub">${esc(delta.replace(/^ · /, ''))}${r.note ? ' — ' + esc(r.note) : ''}</div></div><a class="btn btn-primary btn-sm" href="${url}" download="${esc(r.name)}">Unduh</a>`;
       rl.appendChild(d);

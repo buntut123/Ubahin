@@ -727,6 +727,45 @@
       closeVideo(v);
     }
   }
+  /* MOV -> MP4 tanpa mengodekan ulang: hanya mengganti "kemasan" (ftyp). Isi video & suara tidak disentuh,
+     jadi cepat, kualitas sama, dan hemat memori (Blob.slice tidak menyalin berkas). */
+  E.mov2mp4 = async (files, o, prog) => {
+    const out = [], fourcc = (dv, at) => String.fromCharCode(dv.getUint8(at), dv.getUint8(at + 1), dv.getUint8(at + 2), dv.getUint8(at + 3));
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i], tag = f.name + ' — ';
+      prog(i / files.length, tag + 'memeriksa…');
+      // 1) baca kotak tingkat atas (jumlahnya sedikit)
+      const boxes = []; let pos = 0;
+      while (pos + 8 <= f.size && boxes.length < 400) {
+        const dv = new DataView(await f.slice(pos, pos + 16).arrayBuffer()); let size = dv.getUint32(0), hl = 8; const type = fourcc(dv, 4);
+        if (size === 1 && dv.byteLength >= 16) { size = Number(dv.getBigUint64(8)); hl = 16; } else if (size === 0) size = f.size - pos;
+        if (size < hl || pos + size > f.size + 1) break;
+        boxes.push({ type, pos, size }); pos += size;
+      }
+      const ftyp = boxes[0], moov = boxes.find((b) => b.type === 'moov');
+      if (!ftyp || ftyp.type !== 'ftyp' || !moov || !boxes.some((b) => b.type === 'mdat')) throw new Error('"' + f.name + '" bukan berkas video MOV/MP4 yang utuh.');
+      const fdv = new DataView(await f.slice(ftyp.pos, ftyp.pos + Math.min(ftyp.size, 64)).arrayBuffer()), major = fourcc(fdv, 8);
+      if (major !== 'qt  ') { out.push({ name: baseName(f.name) + '.mp4', blob: f, before: f.size, note: 'Berkas ini sudah berformat MP4 (bukan kemasan QuickTime), jadi tidak diubah.' }); continue; }
+      if (ftyp.size < 20 || ftyp.size > 4096) throw new Error('Struktur "' + f.name + '" tidak dikenali.');
+      // 2) periksa jenis kodek
+      prog((i + 0.4) / files.length, tag + 'memeriksa kodek…');
+      if (moov.size > 128 * 1048576) throw new Error('Berkas "' + f.name + '" memiliki struktur yang terlalu besar untuk diperiksa di browser.');
+      const mb = new Uint8Array(await f.slice(moov.pos, moov.pos + moov.size).arrayBuffer()); let txt = ''; for (let k = 0; k < mb.length; k += 32768) txt += String.fromCharCode.apply(null, mb.subarray(k, k + 32768));
+      const has = (c) => txt.indexOf(c) > -1, notes = [];
+      if (['ap4h', 'ap4x', 'apch', 'apcn', 'apcs', 'apco'].some(has)) throw new Error('"' + f.name + '" memakai kodek ProRes yang tidak didukung format MP4. Coba alat Kompres Video.');
+      if (['sowt', 'twos', 'lpcm', 'in24', 'in32', 'fl32'].some(has)) notes.push('Suara berformat PCM tanpa kompresi; sebagian pemutar MP4 mungkin tidak memutarnya.');
+      if (has('hvc1') || has('hev1')) notes.push('Video HEVC (H.265): diputar normal di iPhone, Mac, dan banyak HP baru, tetapi sebagian pemutar atau PC lama tidak mendukungnya.');
+      if (!has('avc1') && !has('hvc1') && !has('hev1')) notes.push('Kodek video tidak dikenali; jika hasil tidak bisa diputar, coba Kompres Video.');
+      // 3) ftyp baru berukuran SAMA agar posisi data (offset) tidak bergeser
+      const n = (ftyp.size - 16) / 4 | 0, brands = ['mp42', 'isom', 'mp41', 'iso2', 'avc1']; const nb = new Uint8Array(ftyp.size), nv = new DataView(nb.buffer);
+      nv.setUint32(0, ftyp.size); nb.set([102, 116, 121, 112], 4); nb.set([109, 112, 52, 50], 8); nv.setUint32(12, 0);
+      for (let k = 0; k < n; k++) nb.set(Array.from(brands[Math.min(k, brands.length - 1)]).map((c) => c.charCodeAt(0)), 16 + k * 4);
+      prog((i + 0.8) / files.length, tag + 'menyusun MP4…');
+      out.push({ name: baseName(f.name) + '.mp4', blob: new Blob([nb, f.slice(ftyp.pos + ftyp.size)], { type: 'video/mp4' }), before: f.size, note: notes.join(' ') });
+    }
+    prog(1, 'Selesai');
+    return out;
+  };
   E.videotrim = async (files, o, prog) => {
     const out = [];
     for (let i = 0; i < files.length; i++) {
