@@ -57,7 +57,9 @@
     if (e === 'heic' || e === 'heif' || /hei[cf]/.test(file.type)) {
       try { return await bitmapFrom(file); } catch (_) { /* Chrome/Firefox tidak bisa HEIC → pakai heic2any */ }
       await loadScript(CDN.heic);
-      const out = await window.heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+      let out;
+      try { out = await window.heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 }); }
+      catch (he) { throw new Error('File "' + file.name + '" tidak bisa dibaca sebagai foto HEIC (mungkin rusak atau formatnya tidak didukung).'); }
       return bitmapFrom(Array.isArray(out) ? out[0] : out);
     }
     try { return await bitmapFrom(file); }

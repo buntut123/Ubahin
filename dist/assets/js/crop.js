@@ -34,7 +34,8 @@
   const $ = (s) => root.querySelector(s);
   const dz = $('#cdz'), fi = $('#cfi'), al = $('#cal'), work = $('#cwork'), stage = $('#stage'), cv = $('#cv'), box = $('#box'), info = $('#cinfo'), asp = $('#casp'), fm = $('#cfmt'), st = $('#cst'), rs = $('#crs'), rl = $('#crl');
   let img = null, name = 'gambar', dW = 0, dH = 0, nat = { w: 0, h: 0 }, R = { x: 0, y: 0, w: 0, h: 0 }, drag = null, url = null;
-  const showErr = (m) => { al.className = 'alert err'; al.textContent = m; }; const clr = () => { al.className = 'alert'; al.textContent = ''; };
+  const errText = (m, fb) => { if (typeof m === 'string') return m; if (m && typeof m.message === 'string' && m.message) return m.message; if (m && typeof m.type === 'string') return fb || 'Terjadi kesalahan.'; try { const j = JSON.stringify(m); return j && j !== '{}' ? j : (fb || 'Terjadi kesalahan.'); } catch (_) { return fb || 'Terjadi kesalahan.'; } };
+  const showErr = (m) => { al.className = 'alert err'; al.textContent = errText(m); }; const clr = () => { al.className = 'alert'; al.textContent = ''; };
   const sizeSel = $('#csize'), sizeOf = () => (sizeSel && CFG ? CFG.sizes.find((z) => z.id === sizeSel.value) : null);
   const ratio = () => { const z = sizeOf(); if (z) return z.w / z.h; return asp.value === 'free' ? null : parseFloat(asp.value); };
   if (CFG && CFG.sizes) { sizeSel.value = CFG.size || CFG.sizes[0].id; asp.disabled = true; asp.parentElement.hidden = true; }
@@ -64,7 +65,7 @@
     if (!ACCEPT.includes(Eng.ext(file.name))) return showErr('Format tidak didukung. Gunakan JPG, PNG, WEBP, atau HEIC.');
     if (file.size > 200 * 1048576) return showErr('File terlalu besar (maks 200 MB).');
     st.textContent = '';
-    try { img = await U.decodeImage(file); } catch (e) { return showErr(e.message || 'Gambar tidak bisa dibaca.'); }
+    try { img = await U.decodeImage(file); } catch (e) { return showErr(errText(e, 'Gambar tidak bisa dibaca.')); }
     const d = U.dimsOf(img); nat = { w: d.w, h: d.h }; name = Eng.baseName(file.name);
     dz.style.display = 'none'; work.hidden = false; layout(); reset();
   }
@@ -114,7 +115,7 @@
       rl.innerHTML = `<div class="res"><img class="thumb" src="${url}" alt=""><div class="meta"><div class="name">${esc(fname)}</div><div class="sub">${ow} × ${oh} px · ${fmt(blob.size)}</div></div><a class="btn btn-primary btn-sm" href="${url}" download="${esc(fname)}">Unduh</a></div>`;
       rs.style.display = 'block'; work.hidden = true; st.textContent = '';
       rs.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    } catch (e) { st.textContent = ''; showErr(e.message || 'Gagal memotong gambar.'); }
+    } catch (e) { st.textContent = ''; showErr(errText(e, 'Gagal memotong gambar.')); }
   });
   const again = () => { img = null; work.hidden = true; rs.style.display = 'none'; dz.style.display = ''; clr(); };
   $('#cagain').addEventListener('click', again); $('#cchg').addEventListener('click', again);

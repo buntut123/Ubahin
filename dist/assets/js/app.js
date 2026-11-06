@@ -33,7 +33,8 @@
   const dz = $('#dz'), fi = $('#fi'), al = $('#al'), work = $('#work'), list = $('#list'), optsEl = $('#opts');
   const go = $('#go'), pg = $('#pg'), st = $('#st'), rs = $('#rs'), rl = $('#rl');
 
-  const showErr = (m, info) => { al.className = 'alert ' + (info ? 'info' : 'err'); al.textContent = m; };
+  const errText = (m, fb) => { if (typeof m === 'string') return m; if (m && typeof m.message === 'string' && m.message) return m.message; if (m && typeof m.type === 'string') return fb || 'Terjadi kesalahan.'; try { const j = JSON.stringify(m); return j && j !== '{}' ? j : (fb || 'Terjadi kesalahan.'); } catch (_) { return fb || 'Terjadi kesalahan.'; } };
+  const showErr = (m, info) => { al.className = 'alert ' + (info ? 'info' : 'err'); al.textContent = errText(m); };
   const clearErr = () => { al.className = 'alert'; al.textContent = ''; };
 
   /* ---- target & opsi ---- */
@@ -131,7 +132,7 @@
       lastResults = out; showResults(out);
     } catch (e) {
       console.error(e);
-      showErr(e && e.message ? e.message : 'Terjadi kesalahan saat memproses file.');
+      showErr(errText(e, 'Terjadi kesalahan saat memproses file.'));
     } finally {
       running = false; go.disabled = false; go.textContent = curTarget.button || cfg.button || 'Ubah sekarang';
       pg.style.display = 'none'; st.textContent = '';
@@ -159,7 +160,7 @@
     try {
       const blob = await Eng.zip(lastResults), url = URL.createObjectURL(blob), a = document.createElement('a');
       a.href = url; a.download = 'ubahin-hasil.zip'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
-    } catch (err) { showErr('Gagal membuat ZIP: ' + err.message); }
+    } catch (err) { showErr('Gagal membuat ZIP: ' + errText(err, '')); }
     b.disabled = false; b.textContent = 'Unduh semua (ZIP)';
   });
   $('#again').addEventListener('click', () => { files = []; lastResults = []; rs.style.display = 'none'; clearErr(); renderList(); });

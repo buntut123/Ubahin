@@ -6,16 +6,17 @@
   var me = document.currentScript, src = me && me.src ? me.src : '';
   var dir = src.slice(0, src.lastIndexOf('/') + 1);            // .../sidebar/
   var root = dir.replace(/sidebar\/$/, '');                     // situs utama
+  var EN = document.documentElement.lang === 'en';
   var asHtml = /index\.html$/.test(location.pathname);
-  var url = function (slug) { return root + 'blog/' + slug + '/' + (asHtml ? 'index.html' : ''); };
+  var url = function (slug) { return root + (EN ? 'en/' : '') + 'blog/' + slug + '/' + (asHtml ? 'index.html' : ''); };
   var here = (location.pathname.match(/\/blog\/([^\/]+)\//) || [])[1] || '';
-  var fmt = function (iso) { try { return new Date(iso + 'T00:00:00Z').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }); } catch (e) { return iso; } };
+  var fmt = function (iso) { try { return new Date(iso + 'T00:00:00Z').toLocaleDateString(EN ? 'en-US' : 'id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }); } catch (e) { return iso; } };
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
 
-  fetch(dir + 'artikel.json', { cache: 'no-cache' }).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (items) {
+  fetch(dir + (EN ? 'artikel-en.json' : 'artikel.json'), { cache: 'no-cache' }).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (items) {
     if (!Array.isArray(items) || !items.length) return;
     items = items.slice().sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
-    box.innerHTML = '<h2>Artikel Lainnya</h2><input class="bs-search" type="search" placeholder="Cari artikel…" aria-label="Cari artikel"><ul class="bs-list"></ul><p class="bs-empty" hidden>Tidak ada artikel yang cocok.</p><a class="bs-all" href="' + root + 'blog/' + (asHtml ? 'index.html' : '') + '">Lihat semua artikel →</a>';
+    box.innerHTML = '<h2>' + (EN ? 'More articles' : 'Artikel Lainnya') + '</h2><input class="bs-search" type="search" placeholder="' + (EN ? 'Search articles…' : 'Cari artikel…') + '" aria-label="' + (EN ? 'Search articles' : 'Cari artikel') + '"><ul class="bs-list"></ul><p class="bs-empty" hidden>' + (EN ? 'No matching articles.' : 'Tidak ada artikel yang cocok.') + '</p><a class="bs-all" href="' + root + (EN ? 'en/' : '') + 'blog/' + (asHtml ? 'index.html' : '') + '">' + (EN ? 'See all articles →' : 'Lihat semua artikel →') + '</a>';
     var ul = box.querySelector('.bs-list'), inp = box.querySelector('.bs-search'), none = box.querySelector('.bs-empty');
     function draw(q) {
       q = (q || '').toLowerCase().trim(); var n = 0;
