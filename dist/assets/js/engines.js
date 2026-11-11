@@ -442,10 +442,17 @@
       const f = files[i], b = baseName(f.name), P = (x, m) => prog((i + x) / files.length, f.name + ' — ' + m);
       P(0, 'membaca…');
       if (o.to === 'aac') {
+        if ((o.start && parseTime(o.start, 0) > 0) || (o.end && String(o.end).trim())) throw new Error('Pemotongan waktu tidak tersedia untuk AAC. Pilih MP3 atau WAV.');
         if (!MP4EXT.includes(ext(f.name))) throw new Error('Format AAC hanya untuk file MP4/MOV/M4A. Untuk "' + f.name + '" pilih MP3 atau WAV.');
         out.push({ name: b + '.aac', blob: adtsBlob(await demuxAac(f)), note: 'Suara asli dari video, tidak dikonversi ulang.' }); continue;
       }
-      const { chs, rate } = await getPcm(f, o, (x, m) => P(x * 0.5, m));
+      let { chs, rate } = await getPcm(f, o, (x, m) => P(x * 0.5, m));
+      { const t0 = parseTime(o.start, 0), t1 = parseTime(o.end, Infinity), tot = chs[0].length / rate;
+        if (t0 > 0 || t1 < tot) {
+          if (t0 >= tot) throw new Error('Waktu mulai (' + t0 + ' dtk) melebihi durasi suara (' + tot.toFixed(1) + ' dtk).');
+          if (t1 <= t0) throw new Error('Waktu selesai harus lebih besar dari waktu mulai.');
+          const a = Math.floor(t0 * rate), z = Math.min(chs[0].length, Math.ceil(t1 * rate)); chs = chs.map((c) => c.subarray(a, z));
+        } }
       const chN = chs.length;
       if (o.to === 'wav') { out.push({ name: b + '.wav', blob: wavBlob(chs, rate) }); continue; }
       try { await loadScript(CDN.lame); } catch (e) { throw new Error('Komponen MP3 gagal dimuat (periksa koneksi internet). Anda bisa memilih AAC atau WAV sebagai alternatif.'); }
