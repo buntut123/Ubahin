@@ -3,7 +3,7 @@
 Konverter file online berbahasa Indonesia. Situs statis; semua konversi berjalan di browser pengguna (file tidak diunggah).
 
 ## Struktur
-- `build.mjs` — generator halaman (beranda, 28 halaman alat, blog, legal, sitemap, robots, `_headers`)
+- `build.mjs` — generator halaman (beranda, 124 halaman alat, blog, legal, sitemap, robots, `_headers`)
 - `public/assets/` — CSS, JS (`engines.js` = mesin konversi, `app.js` = antarmuka), pustaka (pdf-lib, pdf.js, JSZip), logo
 - `dist/` — hasil build, siap di-upload ke hosting
 
